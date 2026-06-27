@@ -1,0 +1,209 @@
+#include <Servo.h>
+
+// Create a servo object
+Servo myServo;
+// Pins
+#define trigPin 4
+#define echoPin 3
+#define MLa 10
+#define MLb 9
+#define MRa 8
+#define MRb 7
+#define enl 6
+#define enr 5
+#define leftIR A0
+#define rightIR A3
+#define rightFlame A5
+#define leftFlame A4
+#define LEDPin 13
+
+
+int motorSpeedLeft = 100;   // Range: 0 - 255
+int motorSpeedRight = 100;// Global Variables
+long duration, distance;
+int distance_F, distance_L, distance_R;
+int Set = 20; // Obstacle threshold in cm
+void setup() {
+  Serial.begin(9600);
+
+  pinMode(MLa, OUTPUT);
+  pinMode(MLb, OUTPUT);
+  pinMode(MRa, OUTPUT);
+  pinMode(MRb, OUTPUT);
+  pinMode(enl, OUTPUT);
+  pinMode(enr, OUTPUT);
+  pinMode(leftIR, INPUT);
+  pinMode(rightIR, INPUT);
+  pinMode(trigPin, OUTPUT);
+  pinMode(echoPin, INPUT);
+  myServo.attach(A2);
+  pinMode(rightFlame, INPUT);
+  pinMode(leftFlame, INPUT);
+   pinMode(LEDPin, OUTPUT);
+
+
+
+}
+void loop()
+{
+  int leftIRValue = digitalRead(leftIR);
+  int rightIRValue = digitalRead(rightIR);
+    if (leftIRValue == 0 && rightIRValue == 0)
+    {
+      moveForward();
+    }
+    else if(leftIRValue == 0 && rightIRValue == 1)
+    {
+      turnRight();
+    }
+    else if(leftIRValue == 1 && rightIRValue == 0)
+    {
+      turnLeft();
+    }
+    else
+    {
+      stopMotors();
+    }
+    distance_F = readUltrasonic();//front
+  Serial.print("Front Distance: ");
+  Serial.println(distance_F);
+  if (distance_F < Set) {
+  stopMotors();
+  scanServoCenter(); // Decide new direction
+}
+  int left = digitalRead(leftFlame);
+  int right = digitalRead(rightFlame);
+  Serial.print("Left Flame: "); Serial.print(left);
+  Serial.print(" | Right Flame: "); Serial.println(right);
+  delay(500);
+ if (readFlameSensor()) {
+    Serial.println("Flame detected");
+    digitalWrite(LEDPin, HIGH);
+    delay(1000);
+    stopMotors();
+    delay(1000);
+    moveBackward();
+    delay(700);
+    stopMotors();
+  }
+  else{
+    Serial.println("Flame NOT detected");
+  
+  }
+
+ digitalWrite(LEDPin,LOW);
+
+}
+
+
+// ========== Movement Controls ==========
+void moveForward() {
+  digitalWrite(MRb, HIGH); digitalWrite(MRa, LOW);
+  digitalWrite(MLb, HIGH); digitalWrite(MLa, LOW);
+  analogWrite(enr, motorSpeedRight);
+  analogWrite(enl, motorSpeedLeft);
+  
+}
+
+void moveBackward() {
+  digitalWrite(MRb, LOW); digitalWrite(MRa, HIGH);
+  digitalWrite(MLb, LOW); digitalWrite(MLa, HIGH);
+  analogWrite(enr, motorSpeedRight);
+  analogWrite(enl, motorSpeedLeft);
+ 
+}
+
+void turnLeft() {
+  digitalWrite(MRb, HIGH); digitalWrite(MRa, LOW);
+  digitalWrite(MLb, LOW); digitalWrite(MLa, LOW);
+  analogWrite(enr, motorSpeedRight);
+  analogWrite(enl, motorSpeedLeft);
+
+}
+
+void turnRight() {
+  digitalWrite(MRb, LOW); digitalWrite(MRa, LOW);
+  digitalWrite(MLb, HIGH); digitalWrite(MLa, LOW);
+  analogWrite(enr, motorSpeedRight);
+  analogWrite(enl, motorSpeedLeft);
+   delay(3000);
+}
+
+void stopMotors() {
+  digitalWrite(MRb, LOW); digitalWrite(MRa, LOW);
+  digitalWrite(MLb, LOW); digitalWrite(MLa, LOW);
+  analogWrite(enr, motorSpeedRight);
+  analogWrite(enl, motorSpeedLeft);
+  
+}
+// ========== Ultrasonic Reading ==========
+long readUltrasonic() {
+  digitalWrite(trigPin, LOW); delayMicroseconds(2);
+  digitalWrite(trigPin, HIGH); delayMicroseconds(10);
+  digitalWrite(trigPin, LOW);
+  duration = pulseIn(echoPin, HIGH);
+  return duration / 29 / 2;
+}
+
+
+void setServoAngle(int angle) {
+  myServo.write(angle);
+  delay(100);
+}
+
+void scanServoCenter() {
+  for (int angle = 70; angle <= 140; angle += 5) {
+    setServoAngle(angle);
+
+  }
+  delay(200);
+  distance_R = readUltrasonic();
+  Serial.print("Right: "); Serial.println(distance_R);
+
+  for (int angle = 140; angle >= 0; angle -= 5) {
+    setServoAngle(angle);
+  }
+  delay(200);
+  distance_L = readUltrasonic();
+  Serial.print("Left: "); Serial.println(distance_L);
+
+  for (int angle = 0; angle <= 70; angle += 5) {
+    setServoAngle(angle);
+  }
+  compareDistance();
+}
+
+// ========== Movement Logic ==========
+void compareDistance() {
+  if (distance_L > distance_R && distance_L > Set) {
+    turnLeft(); delay(500);
+    moveForward(); delay(600);
+    turnRight(); delay(500);
+    moveForward(); delay(600);
+    turnRight(); delay(400);
+  }
+  else if (distance_R >= distance_L && distance_R > Set) {
+    turnRight(); delay(500);
+    moveForward(); delay(600);
+    turnLeft(); delay(500);
+    moveForward(); delay(600);
+    turnLeft(); delay(400);
+  }
+  else {
+    moveBackward(); delay(500);
+    turnLeft(); delay(500);
+  }
+  stopMotors();
+}
+
+bool readFlameSensor() {
+  int rightFlameValue = digitalRead(rightFlame);
+  int leftFlameValue = digitalRead(leftFlame);
+  if(rightFlameValue == LOW || leftFlameValue == LOW)
+  {
+    return true;
+  }
+  else{
+    return false;
+  }
+}
